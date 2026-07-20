@@ -24,6 +24,75 @@ That path always points at the **newest** synced image.
 
 ---
 
+## Vibecoders guide
+
+You SSH into a box. You talk to Grok/Claude there. You want it to **see your screenshots** without learning `scp`.
+
+### The only path that matters
+
+```text
+@~/.cache/clipremote/latest.png
+```
+
+Paste that in the agent. Always. New screenshot → that file updates. Done.
+
+### Setup once (copy-paste)
+
+Pick version from [Releases](https://github.com/vulcanhelix/clipremote/releases/latest) (example: `0.1.6`).
+
+**1. On the remote box** (where the agent runs):
+
+```bash
+V=0.1.6   # bump if a newer release exists
+mkdir -p ~/.local/bin
+curl -fsSL -o ~/.local/bin/clipremote \
+  "https://github.com/vulcanhelix/clipremote/releases/download/v${V}/clipremote_${V}_linux_amd64"
+chmod +x ~/.local/bin/clipremote
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc
+clipremote setup --remote
+```
+
+(ARM server? `linux_arm64` instead of `linux_amd64`.)
+
+**2. On your Mac:**
+
+```bash
+V=0.1.6
+# M1/M2/M3 → darwin_arm64 | Intel → darwin_amd64
+ARCH=darwin_amd64
+curl -fsSL -o /usr/local/bin/clipremote \
+  "https://github.com/vulcanhelix/clipremote/releases/download/v${V}/clipremote_${V}_${ARCH}"
+chmod +x /usr/local/bin/clipremote
+
+clipremote setup
+clipremote host add box YOU@YOUR_SERVER   # same as: ssh YOU@YOUR_SERVER
+clipremote install-service                # survives reboot
+```
+
+**3. Tell the agent once** (drop into remote `~/.claude/CLAUDE.md` or `~/.grok/rules/`):
+
+> Screenshots are at `@~/.cache/clipremote/latest.png`. Read that. Don’t ask me to scp.
+
+### Every day after that
+
+1. Screenshot (save to Desktop / CleanShot — whatever lands a PNG on Desktop).
+2. Wait one second.
+3. In the agent: `@~/.cache/clipremote/latest.png`  
+   or just say “look at my screenshot” if you installed the rule above.
+
+### If it breaks
+
+| Vibe check | Do this |
+|------------|---------|
+| Agent can’t see the image | New screenshot, wait 1s, try `@~/.cache/clipremote/latest.png` again |
+| Nothing uploads | On Mac: `tail -20 ~/Library/Logs/clipremote.log` |
+| “Permission denied” | Your SSH key needs to work without typing a password |
+| Wrong Mac CPU binary | `bad CPU type` → use the other `darwin_*` build |
+
+That’s it. The long docs below are for when the vibe fails.
+
+---
+
 ## Why this exists
 
 Coding agents can read images, but when the agent runs **on a server over SSH**, your screenshot lives on the **laptop**. Terminal clipboard bridges (OSC 52, `grok wrap`, etc.) help copy **text out** — they do not get **images in**.
