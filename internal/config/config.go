@@ -11,11 +11,17 @@ import (
 
 // Config is the user configuration for clipremote.
 type Config struct {
-	Port      int
-	AutoPush  bool
-	History   int
-	Hosts     []Host
+	Port                int
+	AutoPush            bool
+	History             int
+	Hosts               []Host
 	ControlPathTemplate string
+	// ScreenshotsDir is where CleanShot / macOS saves images (empty = auto-detect).
+	ScreenshotsDir string
+	// ScreenshotsN is how many recent local images to consider (default 20).
+	ScreenshotsN int
+	// Source: "folder" (default), "clipboard", or "auto" (folder then clipboard).
+	Source string
 }
 
 // Host is a configured remote target.
@@ -28,8 +34,10 @@ func Default() Config {
 	return Config{
 		Port:                paths.DefaultPort,
 		AutoPush:            true,
-		History:             paths.DefaultHistory,
+		History:             paths.DefaultHistory, // remote keeps this many
 		ControlPathTemplate: "~/.ssh/clipremote-%r@%h:%p",
+		ScreenshotsN:        paths.DefaultHistory,
+		Source:              "folder",
 	}
 }
 
@@ -69,6 +77,9 @@ func Save(cfg Config) error {
 	b.WriteString(fmt.Sprintf("auto_push = %v\n", cfg.AutoPush))
 	b.WriteString(fmt.Sprintf("history = %d\n", cfg.History))
 	b.WriteString(fmt.Sprintf("control_path = %q\n", cfg.ControlPathTemplate))
+	b.WriteString(fmt.Sprintf("screenshots_dir = %q\n", cfg.ScreenshotsDir))
+	b.WriteString(fmt.Sprintf("screenshots_n = %d\n", cfg.ScreenshotsN))
+	b.WriteString(fmt.Sprintf("source = %q\n", cfg.Source))
 	b.WriteString("\n")
 	for _, h := range cfg.Hosts {
 		b.WriteString("[[hosts]]\n")
@@ -142,6 +153,14 @@ func parseTOMLLite(src string, cfg Config) (Config, error) {
 			}
 		case "control_path":
 			cfg.ControlPathTemplate = unquote(val)
+		case "screenshots_dir":
+			cfg.ScreenshotsDir = unquote(val)
+		case "screenshots_n":
+			if n, err := strconv.Atoi(val); err == nil {
+				cfg.ScreenshotsN = n
+			}
+		case "source":
+			cfg.Source = unquote(val)
 		}
 	}
 	flush()

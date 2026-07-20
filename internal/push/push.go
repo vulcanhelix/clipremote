@@ -13,8 +13,13 @@ import (
 	"github.com/vulcanhelix/clipremote/internal/paths"
 )
 
-// ToHost streams PNG bytes to `clipremote ingest` on the remote host via SSH.
+// ToHost streams image bytes to `clipremote ingest` on the remote host via SSH.
 func ToHost(sshTarget string, png []byte) error {
+	return ToHostOpts(sshTarget, png, true)
+}
+
+// ToHostOpts streams image bytes; setClipboard asks remote to update its clipboard too.
+func ToHostOpts(sshTarget string, png []byte, setClipboard bool) error {
 	if sshTarget == "" {
 		return fmt.Errorf("empty ssh target")
 	}
@@ -22,12 +27,28 @@ func ToHost(sshTarget string, png []byte) error {
 		"-o", "BatchMode=yes",
 		"-o", "ConnectTimeout=8",
 	}
-	// Prefer ControlMaster if present
 	if cp := controlPathFor(sshTarget); cp != "" {
 		args = append(args, "-o", "ControlPath="+cp, "-o", "ControlMaster=auto", "-o", "ControlPersist=yes")
 	}
-	// Non-interactive SSH often has a minimal PATH. Prefer login shell + common install dirs.
-	remoteCmd := `export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"; exec clipremote ingest --clipboard`
+	ingestArgs := "ingest"
+	if setClipboard {
+		ingestArgs = "ingest --clipboard"
+	}
+	// Prefer real file binaries — never exec a directory named clipremote (e.g. the git repo).
+	remoteCmd := fmt.Sprintf(`set -e
+for c in "$HOME/.local/bin/clipremote" /usr/local/bin/clipremote /usr/bin/clipremote; do
+  if [ -f "$c" ] && [ -x "$c" ]; then
+    exec "$c" %s
+  fi
+done
+export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"
+c=$(command -v clipremote 2>/dev/null || true)
+if [ -n "$c" ] && [ -f "$c" ] && [ -x "$c" ]; then
+  exec "$c" %s
+fi
+echo "clipremote binary not found on remote — install to ~/.local/bin/clipremote" >&2
+exit 127
+`, ingestArgs, ingestArgs)
 	args = append(args, sshTarget, "bash", "-lc", remoteCmd)
 
 	cmd := exec.Command("ssh", args...)
@@ -40,6 +61,15 @@ func ToHost(sshTarget string, png []byte) error {
 		return fmt.Errorf("ssh %s: %w: %s", sshTarget, err, strings.TrimSpace(stderr.String()))
 	}
 	return nil
+}
+
+// FileToHost uploads a local image file to the remote host.
+func FileToHost(sshTarget, localPath string) error {
+	data, err := os.ReadFile(localPath)
+	if err != nil {
+		return err
+	}
+	return ToHostOpts(sshTarget, data, true)
 }
 
 func controlPathFor(target string) string {
@@ -107,10 +137,40 @@ func UnmarkActive(sshTarget string) error {
 	return os.Remove(filepath.Join(dir, name))
 }
 
-// ActiveTargets returns hosts that should receive auto-push.
+// ActiveTargets returns hosts marked by an open clipremote ssh session.
 func ActiveTargets(cfg config.Config) ([]string, error) {
+	return collectTargets(cfg, false)
+}
+
+// PushTargets returns every host that should receive auto-push:
+// all configured hosts, plus any active session markers.
+// Configured hosts are enough — you do not need clipremote ssh open.
+func PushTargets(cfg config.Config) ([]string, error) {
+	return collectTargets(cfg, true)
+}
+
+func collectTargets(cfg config.Config, includeConfigured bool) ([]string, error) {
 	seen := map[string]bool{}
 	var out []string
+
+	add := func(t string) {
+		t = strings.TrimSpace(t)
+		if t == "" || seen[t] {
+			return
+		}
+		seen[t] = true
+		out = append(out, t)
+	}
+
+	if includeConfigured {
+		for _, h := range cfg.Hosts {
+			if h.SSH != "" {
+				add(h.SSH)
+			} else {
+				add(h.Name)
+			}
+		}
+	}
 
 	dir, err := paths.ActiveHostsDir()
 	if err == nil {
@@ -130,35 +190,82 @@ func ActiveTargets(cfg config.Config) ([]string, error) {
 			} else if len(lines) == 1 && strings.Contains(lines[0], "@") {
 				target = strings.TrimSpace(lines[0])
 			}
-			// Also accept filename as target if content empty
-			if target == "" {
-				continue
-			}
-			if !seen[target] {
-				seen[target] = true
-				out = append(out, target)
-			}
+			add(target)
 		}
 	}
 
-	// Also include configured hosts that have a live control socket
+	// Hosts with a live control socket
 	for _, h := range cfg.Hosts {
 		t := h.SSH
 		if t == "" {
 			t = h.Name
 		}
-		if seen[t] {
-			continue
-		}
 		if cp := controlPathFor(t); cp != "" {
-			// check socket exists
 			if _, err := os.Stat(cp); err == nil {
-				seen[t] = true
-				out = append(out, t)
+				add(t)
 			}
 		}
 	}
 	return out, nil
+}
+
+// EnsureControlMaster opens a background multiplexed SSH connection so later
+// pushes are fast and don't need an interactive session.
+func EnsureControlMaster(sshTarget string) error {
+	if sshTarget == "" {
+		return fmt.Errorf("empty ssh target")
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	sshDir := filepath.Join(home, ".ssh")
+	_ = os.MkdirAll(sshDir, 0o700)
+	controlPath := filepath.Join(sshDir, "clipremote-%r@%h:%p")
+
+	// Already up?
+	check := exec.Command("ssh",
+		"-o", "ControlPath="+controlPath,
+		"-o", "ControlMaster=auto",
+		"-O", "check",
+		sshTarget,
+	)
+	if err := check.Run(); err == nil {
+		return nil
+	}
+
+	cmd := exec.Command("ssh",
+		"-o", "BatchMode=yes",
+		"-o", "ControlMaster=auto",
+		"-o", "ControlPath="+controlPath,
+		"-o", "ControlPersist=yes",
+		"-o", "ServerAliveInterval=30",
+		"-o", "ServerAliveCountMax=3",
+		"-Nf",
+		sshTarget,
+	)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("ssh -Nf %s: %w (%s)", sshTarget, err, strings.TrimSpace(stderr.String()))
+	}
+	return nil
+}
+
+// EnsureAllMux opens ControlMaster for every configured host.
+func EnsureAllMux(cfg config.Config) {
+	for _, h := range cfg.Hosts {
+		t := h.SSH
+		if t == "" {
+			t = h.Name
+		}
+		if t == "" {
+			continue
+		}
+		if err := EnsureControlMaster(t); err != nil {
+			fmt.Fprintf(os.Stderr, "clipremote: mux %s: %v\n", t, err)
+		}
+	}
 }
 
 // ListActive returns active host markers for doctor.
