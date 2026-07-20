@@ -30,10 +30,25 @@ func ToHostOpts(sshTarget string, png []byte, setClipboard bool) error {
 	if cp := controlPathFor(sshTarget); cp != "" {
 		args = append(args, "-o", "ControlPath="+cp, "-o", "ControlMaster=auto", "-o", "ControlPersist=yes")
 	}
-	remoteCmd := `export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"; exec clipremote ingest`
+	ingestArgs := "ingest"
 	if setClipboard {
-		remoteCmd += ` --clipboard`
+		ingestArgs = "ingest --clipboard"
 	}
+	// Prefer real file binaries — never exec a directory named clipremote (e.g. the git repo).
+	remoteCmd := fmt.Sprintf(`set -e
+for c in "$HOME/.local/bin/clipremote" /usr/local/bin/clipremote /usr/bin/clipremote; do
+  if [ -f "$c" ] && [ -x "$c" ]; then
+    exec "$c" %s
+  fi
+done
+export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"
+c=$(command -v clipremote 2>/dev/null || true)
+if [ -n "$c" ] && [ -f "$c" ] && [ -x "$c" ]; then
+  exec "$c" %s
+fi
+echo "clipremote binary not found on remote — install to ~/.local/bin/clipremote" >&2
+exit 127
+`, ingestArgs, ingestArgs)
 	args = append(args, sshTarget, "bash", "-lc", remoteCmd)
 
 	cmd := exec.Command("ssh", args...)
