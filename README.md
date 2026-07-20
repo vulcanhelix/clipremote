@@ -118,6 +118,15 @@ cp ~/.claude/rules/clipremote.md ~/.grok/rules/clipremote.md
 | “Permission denied” | Your SSH key needs to work without typing a password |
 | Wrong Mac CPU binary | `bad CPU type` → use the other `darwin_*` build |
 
+### Security (vibecoder version)
+
+- **Open source (MIT)** — anyone can clone the code; they do **not** get your machines or keys.
+- Uploads go **laptop → your server over SSH** (same trust as `scp`). No clipremote cloud in the middle.
+- Daemon on the laptop binds **localhost only**.
+- Screenshots can include secrets — treat them like paste into ChatGPT. Prefer a non-root remote user when you can.
+
+Full notes: [Security](#security).
+
 That’s it. The long docs below are for when the vibe fails.
 
 ---
