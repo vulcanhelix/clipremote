@@ -446,7 +446,7 @@ func cmdHost(args []string) error {
 func cmdSetup(args []string) error {
 	fs := flag.NewFlagSet("setup", flag.ContinueOnError)
 	remote := fs.Bool("remote", false, "configure this machine as the remote side")
-	withXvfb := fs.Bool("with-xvfb", false, "print/install Xvfb tips on remote")
+	_ = fs.Bool("with-xvfb", false, "deprecated (ignored)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
