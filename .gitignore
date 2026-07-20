@@ -1,0 +1,4 @@
+dist/
+*.test
+/clipremote
+.DS_Store
