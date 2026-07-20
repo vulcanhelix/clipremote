@@ -353,12 +353,49 @@ ls -la ~/.cache/clipremote/latest.png
 
 ## Security
 
-- Laptop daemon listens on **`127.0.0.1` only** (pull mode).
-- Uploads use **your SSH credentials** only.
-- Images are stored under the remote user’s home cache; history is capped.
-- Do not expose the daemon port to the public internet.
+### License / open source
+
+This project is **MIT**. Anyone may clone, modify, and redistribute the code. That does **not** grant access to your laptop, your SSH keys, or your remote host — only *you* configure those.
+
+### Trust model
+
+| Piece | What it does | Trust boundary |
+|-------|----------------|----------------|
+| Laptop daemon | Watches a local folder; optional localhost HTTP for pull | Binds **`127.0.0.1` only** — not a public server |
+| Auto-push | `ssh` + `clipremote ingest` on the remote | Same power as whoever can SSH as that user |
+| Remote files | `~/.cache/clipremote/latest.png` + capped history | Readable by that OS user (and root); not multi-tenant isolation |
+| Transport | Your existing SSH | Confidentiality/integrity = your SSH setup |
+
+There is **no clipremote cloud**: screenshots are not uploaded to a third-party service by this tool.
+
+### What this is *not*
+
+- Not end-to-end encryption beyond SSH  
+- Not a secure vault or access-control system for images  
+- Not a defense if the laptop is already compromised (keys + screen content are already at risk)
+
+### Risks to keep in mind
+
+- **Screenshots leak context** — tokens, PII, customer data, private UI. Same class of risk as pasting a shot into any AI chat. History keeps the last N images on the remote.
+- **Auto-push is powerful** — any new file in the watched folder can be sent to the remote as that SSH user. Only watch folders you control (e.g. Desktop / Screenshots).
+- **Shared hosts** — other accounts that can read your home directory can read the cache.
+- **Running as root** on the remote widens blast radius; a normal user is better when practical.
+- **Supply chain** — download binaries from **this** GitHub repo’s Releases (or build from source). A random mirror could be backdoored; MIT forks are not automatically trusted.
+
+### Practical hygiene
+
+1. Prefer **SSH keys** (agent / Keychain); avoid password prompts in automation.  
+2. Use **hostnames you already trust**; don’t point auto-push at unknown boxes.  
+3. Don’t expose the daemon port; leave it on localhost.  
+4. Treat agent access to `latest.png` like clipboard access — the model will *see* whatever you screenshot.  
+5. Optional later: pin a release version and verify checksums before install.
+
+### Disclosure
+
+If you find a security issue in clipremote itself (e.g. unintended network bind, path traversal on ingest), open a private report or a GitHub issue without exploit detail if it’s severe. Best effort for a small MIT project — no formal bug bounty.
 
 ---
+
 
 ## Related projects
 
