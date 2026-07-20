@@ -11,11 +11,11 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/clipremote/clipremote/internal/clipboard"
-	"github.com/clipremote/clipremote/internal/config"
-	"github.com/clipremote/clipremote/internal/ingest"
-	"github.com/clipremote/clipremote/internal/paths"
-	"github.com/clipremote/clipremote/internal/push"
+	"github.com/vulcanhelix/clipremote/internal/clipboard"
+	"github.com/vulcanhelix/clipremote/internal/config"
+	"github.com/vulcanhelix/clipremote/internal/ingest"
+	"github.com/vulcanhelix/clipremote/internal/paths"
+	"github.com/vulcanhelix/clipremote/internal/push"
 )
 
 // Run prints diagnostics to w.

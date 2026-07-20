@@ -11,9 +11,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/clipremote/clipremote/internal/clipboard"
-	"github.com/clipremote/clipremote/internal/config"
-	"github.com/clipremote/clipremote/internal/push"
+	"github.com/vulcanhelix/clipremote/internal/clipboard"
+	"github.com/vulcanhelix/clipremote/internal/config"
+	"github.com/vulcanhelix/clipremote/internal/push"
 )
 
 // Server is the local laptop daemon: HTTP pull endpoint + clipboard watcher.

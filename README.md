@@ -30,7 +30,7 @@ Agent TUIs are multimodal, but over SSH the **image lives on your laptop** while
 ### From source
 
 ```bash
-git clone https://github.com/clipremote/clipremote
+git clone https://github.com/vulcanhelix/clipremote
 cd clipremote
 ./scripts/build.sh
 # put dist/clipremote on PATH (both Mac and remote)

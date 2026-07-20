@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/clipremote/clipremote/internal/config"
-	"github.com/clipremote/clipremote/internal/paths"
+	"github.com/vulcanhelix/clipremote/internal/config"
+	"github.com/vulcanhelix/clipremote/internal/paths"
 )
 
 // ToHost streams PNG bytes to `clipremote ingest` on the remote host via SSH.

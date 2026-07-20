@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/clipremote/clipremote/internal/paths"
+	"github.com/vulcanhelix/clipremote/internal/paths"
 )
 
 // Config is the user configuration for clipremote.

@@ -17,15 +17,15 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/clipremote/clipremote/internal/clipboard"
-	"github.com/clipremote/clipremote/internal/config"
-	"github.com/clipremote/clipremote/internal/daemon"
-	"github.com/clipremote/clipremote/internal/doctor"
-	"github.com/clipremote/clipremote/internal/ingest"
-	"github.com/clipremote/clipremote/internal/paths"
-	"github.com/clipremote/clipremote/internal/push"
-	"github.com/clipremote/clipremote/internal/sshutil"
-	"github.com/clipremote/clipremote/internal/xvfb"
+	"github.com/vulcanhelix/clipremote/internal/clipboard"
+	"github.com/vulcanhelix/clipremote/internal/config"
+	"github.com/vulcanhelix/clipremote/internal/daemon"
+	"github.com/vulcanhelix/clipremote/internal/doctor"
+	"github.com/vulcanhelix/clipremote/internal/ingest"
+	"github.com/vulcanhelix/clipremote/internal/paths"
+	"github.com/vulcanhelix/clipremote/internal/push"
+	"github.com/vulcanhelix/clipremote/internal/sshutil"
+	"github.com/vulcanhelix/clipremote/internal/xvfb"
 )
 
 var version = "0.1.0"
@@ -109,7 +109,7 @@ Typical flow:
   # Copy a screenshot on Mac — it auto-pushes.
   # In remote Grok: Ctrl+V  (or @~/.cache/clipremote/latest.png)
 
-Docs: https://github.com/clipremote/clipremote
+Docs: https://github.com/vulcanhelix/clipremote
 `)
 }
 

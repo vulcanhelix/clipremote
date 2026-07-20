@@ -9,8 +9,8 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/clipremote/clipremote/internal/config"
-	"github.com/clipremote/clipremote/internal/push"
+	"github.com/vulcanhelix/clipremote/internal/config"
+	"github.com/vulcanhelix/clipremote/internal/push"
 )
 
 // WrapOptions configures clipremote ssh.

@@ -9,8 +9,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/clipremote/clipremote/internal/clipboard"
-	"github.com/clipremote/clipremote/internal/paths"
+	"github.com/vulcanhelix/clipremote/internal/clipboard"
+	"github.com/vulcanhelix/clipremote/internal/paths"
 )
 
 // Result is returned after a successful ingest.
