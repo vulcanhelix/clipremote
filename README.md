@@ -69,16 +69,45 @@ clipremote host add box YOU@YOUR_SERVER   # same as: ssh YOU@YOUR_SERVER
 clipremote install-service                # survives reboot
 ```
 
-**3. Tell the agent once** (drop into remote `~/.claude/CLAUDE.md` or `~/.grok/rules/`):
+**3. Tell your agent once** so you never paste the path again.
 
-> Screenshots are at `@~/.cache/clipremote/latest.png`. Read that. Don’t ask me to scp.
+Drop this into the **remote** machine (where Grok/Claude runs), not your laptop:
+
+- Claude: `~/.claude/CLAUDE.md` or `~/.claude/rules/clipremote.md`
+- Grok: `~/.grok/rules/clipremote.md`
+- Or any project `AGENTS.md` / `CLAUDE.md`
+
+Copy-paste this block:
+
+```markdown
+## Screenshots (clipremote)
+
+The user's latest laptop screenshot is **always** at:
+`~/.cache/clipremote/latest.png`
+
+Older shots (if needed): `~/.cache/clipremote/history/`
+
+When they say "screenshot", "look at this", "see my screen", or share UI feedback:
+1. Read `~/.cache/clipremote/latest.png` yourself.
+2. Do **not** ask them to paste the path, scp, or send a Mac `/Users/...` file.
+```
+
+Ready-made file: [`integrations/agent-rules/clipremote.md`](integrations/agent-rules/clipremote.md)
+
+```bash
+# on the remote box
+mkdir -p ~/.claude/rules ~/.grok/rules
+curl -fsSL -o ~/.claude/rules/clipremote.md \
+  https://raw.githubusercontent.com/vulcanhelix/clipremote/main/integrations/agent-rules/clipremote.md
+cp ~/.claude/rules/clipremote.md ~/.grok/rules/clipremote.md
+```
 
 ### Every day after that
 
 1. Screenshot (save to Desktop / CleanShot — whatever lands a PNG on Desktop).
 2. Wait one second.
-3. In the agent: `@~/.cache/clipremote/latest.png`  
-   or just say “look at my screenshot” if you installed the rule above.
+3. In the agent just say **“look at my screenshot”** / **“see this UI”** — no path paste.  
+   (They already know to open `~/.cache/clipremote/latest.png`.)
 
 ### If it breaks
 
