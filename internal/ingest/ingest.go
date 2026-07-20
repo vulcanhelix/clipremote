@@ -77,7 +77,10 @@ func FromReader(r io.Reader, opt Options) (Result, error) {
 	// History
 	histN := opt.HistoryN
 	if histN <= 0 {
-		histN = paths.DefaultHistory
+		histN = paths.DefaultHistory // keep at most N on the VPS
+	}
+	if histN > 50 {
+		histN = 50
 	}
 	histDir, err := paths.HistoryDir()
 	if err != nil {

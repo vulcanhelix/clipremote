@@ -63,6 +63,14 @@ func (s *Server) Run(ctx context.Context) error {
 		_ = httpServer.Shutdown(shutdownCtx)
 	}()
 
+	// Keep SSH mux warm so auto-push works without an open terminal session.
+	if s.Cfg.AutoPush && len(s.Cfg.Hosts) > 0 {
+		go func() {
+			push.EnsureAllMux(s.Cfg)
+			log.Printf("ssh mux ready for %d configured host(s)", len(s.Cfg.Hosts))
+		}()
+	}
+
 	src := s.Cfg.Source
 	if src == "" {
 		src = "folder"
@@ -317,16 +325,18 @@ func (s *Server) clipboardWatchLoop(ctx context.Context) {
 }
 
 func (s *Server) autoPushFile(path string, data []byte) {
-	hosts, err := push.ActiveTargets(s.Cfg)
+	hosts, err := push.PushTargets(s.Cfg)
 	if err != nil {
 		log.Printf("auto-push: %v", err)
 		return
 	}
 	if len(hosts) == 0 {
-		log.Printf("auto-push: no active hosts (clipremote ssh <host>)")
+		log.Printf("auto-push: no hosts configured — run: clipremote host add box user@host")
 		return
 	}
 	for _, h := range hosts {
+		// refresh mux if needed (cheap no-op when already up)
+		_ = push.EnsureControlMaster(h)
 		if err := push.ToHost(h, data); err != nil {
 			log.Printf("auto-push %s → %s: %v", path, h, err)
 		} else {

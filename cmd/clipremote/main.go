@@ -29,7 +29,7 @@ import (
 	"github.com/vulcanhelix/clipremote/internal/xvfb"
 )
 
-var version = "0.1.3"
+var version = "0.1.4"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -467,37 +467,47 @@ func cmdSetup(args []string) error {
 
 	exe, _ := os.Executable()
 
+	// Sensible auto-sync defaults
+	if cfg.ScreenshotsN <= 0 {
+		cfg.ScreenshotsN = 10
+	}
+	if cfg.History <= 0 {
+		cfg.History = 10
+	}
+	if cfg.Source == "" {
+		cfg.Source = "folder"
+	}
+	if cfg.ScreenshotsDir == "" && runtime.GOOS == "darwin" {
+		if home, err := os.UserHomeDir(); err == nil {
+			cfg.ScreenshotsDir = filepath.Join(home, "Desktop")
+		}
+	}
+	cfg.AutoPush = true
+	_ = config.Save(cfg)
+
 	if *remote {
+		// Cap remote history at 10
+		cfg.History = 10
+		_ = config.Save(cfg)
 		fmt.Println("clipremote remote setup")
 		fmt.Printf("  binary:  %s\n", exe)
 		fmt.Printf("  config:  %s\n", cfgPath)
-		fmt.Printf("  cache:   %s\n", cache)
+		fmt.Printf("  cache:   %s (keeps last %d images)\n", cache, cfg.History)
 		fmt.Printf("  latest:  %s\n", filepath.Join(cache, paths.LatestFileName))
 		fmt.Println()
 		fmt.Println("Put clipremote on PATH (example):")
 		fmt.Printf("  mkdir -p ~/.local/bin && cp %s ~/.local/bin/clipremote\n", exe)
 		fmt.Println()
-		fmt.Println("Clipboard (for true Ctrl+V in GUI sessions):")
-		fmt.Println("  # Debian/Ubuntu")
-		fmt.Println("  sudo apt install -y xclip wl-clipboard")
-		if *withXvfb {
-			fmt.Println()
-			fmt.Println("Headless true paste (optional Xvfb):")
-			fmt.Println("  sudo apt install -y xvfb xclip")
-			fmt.Println("  clipremote xvfb")
-			fmt.Println("  export DISPLAY=:99   # in the shell that runs grok")
-			fmt.Print(xvfb.ShellSnippet(":99"))
-		}
-		fmt.Println()
-		fmt.Println("Fallback (always works): attach the stable path in Grok")
+		fmt.Println("In Grok always attach:")
 		fmt.Printf("  @%s\n", filepath.Join(cache, paths.LatestFileName))
 		return nil
 	}
 
 	// Local setup
-	fmt.Println("clipremote local setup")
+	fmt.Println("clipremote local setup (auto-sync)")
 	fmt.Printf("  binary:  %s\n", exe)
 	fmt.Printf("  config:  %s\n", cfgPath)
+	fmt.Printf("  watch:   %s (last %d → remote, remote keeps %d)\n", cfg.ScreenshotsDir, cfg.ScreenshotsN, cfg.History)
 	fmt.Printf("  port:    %d\n", cfg.Port)
 	fmt.Println()
 
@@ -507,23 +517,19 @@ func cmdSetup(args []string) error {
 			fmt.Fprintf(os.Stderr, "  launchd: %v\n", err)
 		} else {
 			fmt.Printf("  launchd plist written: %s\n", plistDir)
-			fmt.Println("  load with:")
-			fmt.Printf("    launchctl load %s\n", plistDir)
+			fmt.Println("  enable with:")
+			fmt.Printf("    launchctl unload %s 2>/dev/null; launchctl load %s\n", plistDir, plistDir)
 		}
-		fmt.Println()
-		fmt.Println("Optional: brew install pngpaste")
 	} else {
 		fmt.Println("Start the daemon in the background:")
 		fmt.Println("  clipremote daemon &")
-		fmt.Println("Or a user systemd unit (example in scripts/).")
 	}
 
 	fmt.Println()
-	fmt.Println("Next:")
-	fmt.Println("  clipremote host add mybox user@hostname")
-	fmt.Println("  clipremote ssh mybox")
-	fmt.Println("  # copy a screenshot, then Ctrl+V in remote Grok")
-	fmt.Println("  # or: @~/.cache/clipremote/latest.png")
+	fmt.Println("One-time:")
+	fmt.Println("  clipremote host add box user@hostname")
+	fmt.Println("  # daemon watches screenshots and auto-pushes new ones")
+	fmt.Println("  # in remote Grok: @~/.cache/clipremote/latest.png")
 	return nil
 }
 

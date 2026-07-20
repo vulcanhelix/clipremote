@@ -3,7 +3,7 @@
 set -euo pipefail
 
 REPO="${CLIPREMOTE_REPO:-https://github.com/vulcanhelix/clipremote}"
-VERSION="${CLIPREMOTE_VERSION:-0.1.3}"
+VERSION="${CLIPREMOTE_VERSION:-0.1.4}"
 PREFIX="${PREFIX:-$HOME/.local}"
 BIN_DIR="${PREFIX}/bin"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

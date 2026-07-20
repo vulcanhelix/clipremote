@@ -34,7 +34,7 @@ func Default() Config {
 	return Config{
 		Port:                paths.DefaultPort,
 		AutoPush:            true,
-		History:             paths.DefaultHistory,
+		History:             paths.DefaultHistory, // remote keeps this many
 		ControlPathTemplate: "~/.ssh/clipremote-%r@%h:%p",
 		ScreenshotsN:        10,
 		Source:              "folder",
