@@ -1,173 +1,273 @@
 # clipremote
 
-**Paste screenshots from your Mac into remote Grok / Claude / Codex over SSH** — without `scp` every time.
+**Auto-sync screenshots from your laptop into a remote Linux host** so Grok, Claude Code, Codex, and other agents can see them over SSH — no `scp` every time.
 
 ```
-Mac clipboard (CleanShot / Copy Image)
-        │
-        ▼
- clipremote daemon  ──ssh push──►  ~/.cache/clipremote/latest.png
-        │                              + remote clipboard (best effort)
-        │
-        └── clipremote ssh host   (ControlMaster + reverse tunnel)
+ Laptop (macOS)                              Remote (Linux)
+┌──────────────────────────┐                ┌─────────────────────────────┐
+│ Screenshots folder       │                │                             │
+│ (Desktop / Screenshots)  │   SSH push     │  ~/.cache/clipremote/       │
+│         │                │ ─────────────► │    latest.png  ← always use │
+│         ▼                │  (mux)         │    history/     (max 20)    │
+│  clipremote daemon       │                │                             │
+│  (LaunchAgent / login)   │                │  Grok / Claude / Codex      │
+└──────────────────────────┘                └─────────────────────────────┘
 ```
 
-Then in remote Grok: **`Ctrl+V`**, or always:
+In the remote agent, attach:
 
 ```text
 @~/.cache/clipremote/latest.png
 ```
 
+That path always points at the **newest** synced image.
+
+---
+
 ## Why this exists
 
-Agent TUIs are multimodal, but over SSH the **image lives on your laptop** while the **process runs on the server**.  
-`grok wrap ssh` fixes **copy text out** (OSC 52). It does **not** bridge images **in**.
+Coding agents can read images, but when the agent runs **on a server over SSH**, your screenshot lives on the **laptop**. Terminal clipboard bridges (OSC 52, `grok wrap`, etc.) help copy **text out** — they do not get **images in**.
 
-`clipremote` does.
+`clipremote` watches a local screenshots folder, pushes new images over SSH, and keeps a fixed remote path plus a short history.
+
+---
+
+## Requirements
+
+| Side | Needs |
+|------|--------|
+| **Laptop** | macOS (primary), SSH key access to the remote host |
+| **Remote** | Linux, `clipremote` binary on `PATH` (e.g. `~/.local/bin`) |
+| **Auth** | Passwordless SSH (key + agent / Keychain) so the daemon can push without prompts |
+
+Linux laptops work for `push` / folder mode; the polished login service path is documented for macOS first.
+
+---
 
 ## Install
+
+Replace `vX.Y.Z` with the [latest release](https://github.com/vulcanhelix/clipremote/releases/latest) tag (e.g. `v0.1.6`).
+
+### 1. Remote Linux host (once)
+
+```bash
+# Pick the asset for your CPU: linux_amd64 or linux_arm64
+mkdir -p ~/.local/bin
+curl -fsSL -o ~/.local/bin/clipremote \
+  "https://github.com/vulcanhelix/clipremote/releases/download/vX.Y.Z/clipremote_X.Y.Z_linux_amd64"
+chmod +x ~/.local/bin/clipremote
+export PATH="$HOME/.local/bin:$PATH"
+
+clipremote setup --remote
+clipremote doctor
+```
+
+Ensure non-interactive SSH can find the binary (`~/.local/bin` is tried first by the client).
+
+### 2. Mac laptop (once)
+
+```bash
+# Apple Silicon → darwin_arm64 | Intel → darwin_amd64
+curl -fsSL -o /usr/local/bin/clipremote \
+  "https://github.com/vulcanhelix/clipremote/releases/download/vX.Y.Z/clipremote_X.Y.Z_darwin_amd64"
+chmod +x /usr/local/bin/clipremote
+
+clipremote setup
+# Point at your screenshots folder if auto-detect is wrong (common: Desktop)
+# Edit ~/.config/clipremote/config.toml → screenshots_dir = "/Users/YOU/Desktop"
+
+clipremote host add myserver you@your-host.example
+clipremote install-service    # starts at login, restarts if it dies
+```
+
+Confirm:
+
+```bash
+clipremote host list
+launchctl print gui/$(id -u)/com.clipremote.daemon | head -20
+tail -20 ~/Library/Logs/clipremote.log
+```
+
+You should see `state = running`, your screenshots folder, and `ssh mux ready` for the configured host.
 
 ### From source
 
 ```bash
-git clone https://github.com/vulcanhelix/clipremote
+git clone https://github.com/vulcanhelix/clipremote.git
 cd clipremote
 ./scripts/build.sh
-# put dist/clipremote on PATH (both Mac and remote)
+# binaries in dist/
+./scripts/install.sh           # this machine as laptop-side
+./scripts/install.sh --remote  # this machine as server-side
 ```
 
-### Install script
+---
 
-```bash
-# on either machine (builds if go.mod present, else downloads release)
-./scripts/install.sh           # local Mac
-./scripts/install.sh --remote  # Linux host
-```
+## Daily use
 
-Cross-compile all targets:
+1. Take a screenshot that **saves a file** into the watched folder (Desktop, CleanShot default, etc.).
+2. Within about a second the daemon uploads it.
+3. On the remote host, in Grok / Claude / Codex:
 
-```bash
-./scripts/build.sh
-# dist/clipremote_0.1.0_darwin_arm64
-# dist/clipremote_0.1.0_linux_amd64
-# ...
-```
-
-Copy the Linux binary to the server:
-
-```bash
-scp dist/clipremote_0.1.0_linux_amd64 user@host:~/.local/bin/clipremote
-ssh user@host 'chmod +x ~/.local/bin/clipremote && clipremote setup --remote'
-```
-
-## Quick start
-
-### 1. Mac (once)
-
-```bash
-clipremote setup
-clipremote daemon &       # or launchctl load the plist from setup
-clipremote host add box user@your-server
-```
-
-Default mode watches your **screenshots folder** (Desktop / Pictures/Screenshots) — CleanShot-friendly, no clipboard needed.
-
-### 2. Remote Linux (once)
-
-```bash
-clipremote setup --remote
-```
-
-### 3. Every day
-
-```bash
-clipremote ssh box
-# take a screenshot → auto-uploads within ~1s
-# in remote Grok:
+```text
 @~/.cache/clipremote/latest.png
 ```
 
-Force upload of the last 20 local screenshots:
+No need to open `clipremote ssh` for each shot once the daemon and SSH keys are set up.
+
+### Manual push (optional)
 
 ```bash
-clipremote push box
-# clipremote push -n 20 --dir ~/Desktop box
+clipremote push myserver
+# clipremote push --dir ~/Desktop -n 20 myserver
 ```
 
-Pull on demand (uses SSH reverse tunnel from `clipremote ssh`):
+### With `grok wrap` (text copy-out + images)
 
 ```bash
-# on remote
-clipremote paste
+grok wrap clipremote ssh myserver
+# or: clipremote ssh myserver   then run grok on the remote
 ```
 
-## Commands
+`grok wrap` helps **copy text from** the remote TUI to your laptop clipboard. `clipremote` handles **images to** the remote.
 
-| Command | Where | What |
-|---|---|---|
-| `daemon` | Mac | Watch clipboard + HTTP pull server (`127.0.0.1:18765`) |
-| `ssh <host>` | Mac | SSH with ControlMaster, mark host active, `-R` pull tunnel |
-| `push [host]` | Mac | Push current clipboard image now |
-| `host add\|list\|rm` | Mac | Manage hosts in `~/.config/clipremote/config.toml` |
-| `ingest` | Remote | Stdin image → `latest.png` (+ optional `--clipboard`) |
-| `paste` | Remote | Fetch from reverse-tunneled daemon → ingest |
-| `latest` | Remote | Print path to `latest.png` |
-| `doctor` | Both | Diagnose daemon / tunnel / clipboard / last ingest |
-| `setup` | Both | Write config, dirs, launchd / PATH tips |
-| `xvfb` | Remote | Start virtual display for headless clipboard |
+---
 
-## True paste vs stable path
+## Teach your agents (recommended)
 
-| Mode | Works when | How |
-|---|---|---|
-| **`Ctrl+V` in Grok** | Remote has a clipboard Grok can read (GUI session, or Xvfb + `DISPLAY`) | Auto-push sets remote clipboard |
-| **`@~/.cache/clipremote/latest.png`** | Always (headless VPS fine) | File updated on every push/paste |
+So every new session knows to read the stable path without asking for `scp`:
 
-Honest default for most SSH servers: use the **stable path** (zero friction, no display). Turn on Xvfb when you want real clipboard paste.
+### Grok
 
-## Config
+Copy the rule into the host’s Grok rules (or your project):
 
-`~/.config/clipremote/config.toml`:
+- Example rule: [`integrations/agent-rules/clipremote.md`](integrations/agent-rules/clipremote.md)
+- Install on the **remote** machine, e.g. `~/.grok/rules/clipremote.md`
+
+### Claude Code
+
+- Same rule file → `~/.claude/rules/clipremote.md` on the remote
+- Optional slash command: [`integrations/claude/paste-image.md`](integrations/claude/paste-image.md) → `~/.claude/commands/paste-image.md`
+
+### Any agent
+
+Instruct it:
+
+> Latest user screenshot is always at `~/.cache/clipremote/latest.png`. Read that file when the user refers to a screenshot or UI. Do not ask for laptop paths or scp.
+
+---
+
+## Configuration
+
+Laptop: `~/.config/clipremote/config.toml`
 
 ```toml
 port = 18765
 auto_push = true
-history = 20
+history = 20                 # how many images the *remote* keeps (on ingest)
 control_path = "~/.ssh/clipremote-%r@%h:%p"
-screenshots_dir = ""          # empty = auto (Desktop, Pictures/Screenshots, …)
-screenshots_n = 20            # last N local images to sync on `push`
-source = "folder"             # folder | clipboard | auto
+screenshots_dir = ""         # empty = auto-detect Desktop / Pictures/Screenshots / …
+screenshots_n = 20           # how many recent local files to consider on `push`
+source = "folder"            # folder | clipboard | auto
 
 [[hosts]]
-name = "box"
-ssh = "user@hostname"
+name = "myserver"
+ssh = "you@your-host.example"
 ```
+
+| Key | Meaning |
+|-----|---------|
+| `screenshots_dir` | Folder to watch (set explicitly if auto-detect is wrong) |
+| `screenshots_n` | Local “recent files” window for `push` / seed |
+| `history` | Applied on the **remote** when ingesting — drop oldest beyond N |
+| `source` | `folder` (default, best for CleanShot), `clipboard`, or `auto` |
+| `auto_push` | Daemon pushes new files to configured hosts |
+| `[[hosts]]` | Named targets for auto-push and `clipremote push` / `ssh` |
+
+Remote uses the same config file shape; set `history = 20` there (or run `clipremote setup --remote`).
+
+---
+
+## Commands
+
+| Command | Side | Purpose |
+|---------|------|---------|
+| `setup` | both | Config dirs, defaults; macOS writes LaunchAgent plist |
+| `install-service` | laptop | Install + start login daemon (survives reboot) |
+| `daemon` | laptop | Run watcher in foreground |
+| `host add\|list\|rm` | laptop | Manage remote targets |
+| `push [name]` | laptop | Upload recent folder images (or `--clipboard`) |
+| `ssh <target>` | laptop | SSH with ControlMaster + reverse tunnel |
+| `ingest` | remote | Read image from stdin → `latest.png` + history |
+| `latest` | remote | Print path to `latest.png` |
+| `paste` | remote | Pull from reverse-tunneled laptop daemon |
+| `doctor` | both | Diagnose daemon, hosts, last ingest, PATH |
+| `version` | both | Print version |
+
+---
+
+## How it works
+
+1. **Daemon** (laptop) polls the screenshots folder (~1s).
+2. On a **new** image file, it SSHs to each configured host and runs `clipremote ingest` with the file on stdin.
+3. **Ingest** (remote) writes `~/.cache/clipremote/latest.png` and a timestamped file under `history/`, pruning to `history` entries.
+4. Agents **read** `latest.png` (or older history files if needed).
+
+SSH uses a **ControlMaster** mux so pushes are fast and do not require an interactive session. Prefer keys loaded in the agent (on macOS, Keychain / `ssh-add --apple-use-keychain`).
+
+Optional **clipboard** mode and reverse-tunnel `paste` remain available; **folder watch is the recommended path**.
+
+---
+
+## Troubleshooting
+
+| Symptom | What to try |
+|---------|-------------|
+| New screenshots not appearing remotely | `tail -f ~/Library/Logs/clipremote.log` on the laptop; confirm daemon `state = running` |
+| `auto-push: no hosts configured` | `clipremote host add NAME user@host` |
+| `clipremote: cannot execute: Is a directory` | Remote `PATH` is hitting a repo folder named `clipremote`; install the **binary** to `~/.local/bin/clipremote` |
+| `Permission denied` on push | Fix SSH keys; test `ssh user@host true` with no password |
+| Wrong folder watched | Set `screenshots_dir` in config to the absolute path CleanShot/macOS uses |
+| `latest.png` is an old/small crop | A newer file may not have landed yet, or a tiny CleanShot region was newest by mtime — take another full shot |
+| Agent asks for `/Users/...` paths | Install the agent rule on the **remote** (see above) |
+| After reboot, no pushes | Confirm LaunchAgent: `clipremote install-service`; ensure SSH key is available at login |
+
+```bash
+# Laptop
+clipremote doctor
+clipremote host list
+
+# Remote
+clipremote doctor
+ls -la ~/.cache/clipremote/latest.png
+```
+
+---
 
 ## Security
 
-- Local daemon binds **`127.0.0.1` only**.
-- Reverse forward is remote-localhost → your Mac loopback (OpenSSH default).
-- Push uses your existing SSH auth (keys / ControlMaster).
-- Images land in your home cache dir; history capped (default 20).
+- Laptop daemon listens on **`127.0.0.1` only** (pull mode).
+- Uploads use **your SSH credentials** only.
+- Images are stored under the remote user’s home cache; history is capped.
+- Do not expose the daemon port to the public internet.
 
-## Grok notes
+---
 
-- Prefer: `grok wrap clipremote ssh host` if you also want OSC 52 **text copy-out**.
-- Optional skill: copy [`integrations/grok/paste-image.md`](integrations/grok/paste-image.md) into your Grok skills/commands so `/paste-image` pulls and reads the file.
-- CleanShot: use **copy to clipboard**, not only “save to Desktop”, for auto-push. (Desktop folder watch can be added later.)
+## Related projects
 
-## Related tools
+- [claude-ssh-image-skill / ccimg](https://github.com/AlexZeitler/claude-ssh-image-skill) — pull + skill  
+- [cc-clip](https://github.com/ShunmeiCho/cc-clip) — reverse tunnel + clipboard shims  
 
-- [ccimg](https://github.com/AlexZeitler/claude-ssh-image-skill) — pull + Claude skill  
-- [cc-clip](https://github.com/ShunmeiCho/cc-clip) — reverse tunnel + xclip shim / Xvfb  
+`clipremote` focuses on **push-from-folder**, a **stable remote path**, and **login daemon** auto-sync.
 
-`clipremote` is **push-first** (clipboard updates before you paste), tool-agnostic, and always maintains a stable file path.
+---
 
 ## Development
 
 ```bash
 go test ./...
 ./scripts/build.sh
+# dist/clipremote_<version>_<os>_<arch>
 ```
 
 ## License

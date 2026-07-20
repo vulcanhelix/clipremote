@@ -80,39 +80,41 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintf(os.Stderr, `clipremote — paste local clipboard images into remote agent TUIs (Grok, Claude, Codex, …)
+	fmt.Fprintf(os.Stderr, `clipremote — auto-sync laptop screenshots to a remote host for AI agents
 
 Usage:
   clipremote <command> [flags]
 
-Local (Mac laptop):
-  setup                 Install config + launchd plist hints
+Laptop (macOS recommended):
+  setup                 Write config + LaunchAgent plist
   install-service       Install + start login daemon (survives reboot)
-  daemon                Run clipboard watcher + pull HTTP server
-  push [host]           Upload last N screenshots from folder (default) or clipboard
-  host add|list|rm      Manage configured hosts
-  ssh <target> [args]   SSH with ControlMaster + reverse tunnel + auto-push
+  daemon                Run folder watcher (foreground)
+  push [host]           Upload recent screenshots (folder by default)
+  host add|list|rm      Manage remote targets
+  ssh <target> [args]   SSH with ControlMaster + reverse tunnel
 
-Remote (Linux host):
-  setup --remote        Create cache dirs; print PATH/Xvfb tips
-  ingest [--clipboard]  Read image from stdin → ~/.cache/clipremote/latest.png
-  paste                 Pull image from reverse-tunneled local daemon
+Remote (Linux):
+  setup --remote        Cache dirs + history defaults
+  ingest [--clipboard]  Stdin image → ~/.cache/clipremote/latest.png
+  paste                 Pull via reverse-tunneled laptop daemon
   latest                Print path to latest.png
-  xvfb                  Start optional virtual display for true Ctrl+V
+  xvfb                  Optional virtual display for clipboard tools
 
 Both:
-  doctor                Diagnose clipboard, daemon, tunnel, last ingest
+  doctor                Diagnose setup
   version               Print version
 
-Typical flow:
-  # Mac
-  clipremote setup
-  clipremote daemon &          # or launchd
-  clipremote host add box user@server
-  clipremote ssh box
+Typical setup:
+  # remote
+  clipremote setup --remote
 
-  # Copy a screenshot on Mac — it auto-pushes.
-  # In remote Grok: Ctrl+V  (or @~/.cache/clipremote/latest.png)
+  # laptop
+  clipremote setup
+  clipremote host add myserver you@host
+  clipremote install-service
+
+  # daily: take a screenshot → on remote agent:
+  #   @~/.cache/clipremote/latest.png
 
 Docs: https://github.com/vulcanhelix/clipremote
 `)

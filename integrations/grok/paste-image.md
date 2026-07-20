@@ -1,22 +1,17 @@
-# Paste image from laptop clipboard (clipremote)
+# clipremote /paste-image
 
-You are running on a remote host. The user's laptop clipboard is bridged by **clipremote**.
+Read the latest screenshot synced from the user's laptop via clipremote.
 
 ## Instructions
 
-1. Run this shell command:
+1. Read `~/.cache/clipremote/latest.png` with the image/Read tool.
+2. Act on the user's request about that image.
+3. If missing or stale: ask them to capture a new screenshot into their watched folder (daemon auto-syncs in ~1s), then re-read.
+4. Do not ask for `scp` or laptop paths like `/Users/...`.
+
+Optional shell check:
 
 ```bash
-clipremote paste --clipboard 2>/dev/null || clipremote latest
+clipremote latest
+ls -la ~/.cache/clipremote/latest.png
 ```
-
-2. The command prints a filesystem path to a PNG (usually `~/.cache/clipremote/latest.png`).
-3. Use the **Read** tool on that path so you can see the image.
-4. If both fail, tell the user:
-   - On the Mac: ensure `clipremote daemon` is running and they connected with `clipremote ssh <host>`.
-   - Or attach manually: `@~/.cache/clipremote/latest.png`
-
-## Notes
-
-- Prefer the printed path from `clipremote paste` / `latest`.
-- Do not ask the user to scp files.

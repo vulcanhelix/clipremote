@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  Template. Prefer: clipremote setup  (writes a plist with the real binary path)
-  Or copy and replace REPLACE_WITH_CLIPREMOTE_PATH
+  Template only. Prefer:
+    clipremote install-service
+  which writes ~/Library/LaunchAgents/com.clipremote.daemon.plist with the real binary path,
+  HOME, PATH, logs, RunAtLoad, and KeepAlive.
 -->
 <plist version="1.0">
 <dict>
