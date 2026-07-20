@@ -87,11 +87,11 @@ clipremote ssh box
 @~/.cache/clipremote/latest.png
 ```
 
-Force upload of the last 10 local screenshots:
+Force upload of the last 20 local screenshots:
 
 ```bash
 clipremote push box
-# clipremote push -n 10 --dir ~/Desktop box
+# clipremote push -n 20 --dir ~/Desktop box
 ```
 
 Pull on demand (uses SSH reverse tunnel from `clipremote ssh`):
@@ -135,7 +135,7 @@ auto_push = true
 history = 20
 control_path = "~/.ssh/clipremote-%r@%h:%p"
 screenshots_dir = ""          # empty = auto (Desktop, Pictures/Screenshots, …)
-screenshots_n = 10            # last N local images to sync on `push`
+screenshots_n = 20            # last N local images to sync on `push`
 source = "folder"             # folder | clipboard | auto
 
 [[hosts]]

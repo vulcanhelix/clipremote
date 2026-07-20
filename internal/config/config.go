@@ -18,7 +18,7 @@ type Config struct {
 	ControlPathTemplate string
 	// ScreenshotsDir is where CleanShot / macOS saves images (empty = auto-detect).
 	ScreenshotsDir string
-	// ScreenshotsN is how many recent local images to keep in sync (default 10).
+	// ScreenshotsN is how many recent local images to consider (default 20).
 	ScreenshotsN int
 	// Source: "folder" (default), "clipboard", or "auto" (folder then clipboard).
 	Source string
@@ -36,7 +36,7 @@ func Default() Config {
 		AutoPush:            true,
 		History:             paths.DefaultHistory, // remote keeps this many
 		ControlPathTemplate: "~/.ssh/clipremote-%r@%h:%p",
-		ScreenshotsN:        10,
+		ScreenshotsN:        paths.DefaultHistory,
 		Source:              "folder",
 	}
 }

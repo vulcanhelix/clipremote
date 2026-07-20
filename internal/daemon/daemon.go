@@ -160,7 +160,7 @@ func (s *Server) latestFolderBytes() ([]byte, error) {
 	}
 	n := s.Cfg.ScreenshotsN
 	if n <= 0 {
-		n = 10
+		n = 20
 	}
 	files, err := shots.Recent(dir, 1)
 	if err != nil || len(files) == 0 {
@@ -181,7 +181,7 @@ func (s *Server) folderWatchLoop(ctx context.Context) {
 	} else {
 		n := s.Cfg.ScreenshotsN
 		if n <= 0 {
-			n = 10
+			n = 20
 		}
 		log.Printf("watching screenshots folder: %s (last %d)", dir, n)
 		s.seedSeen(dir)
@@ -200,7 +200,7 @@ func (s *Server) folderWatchLoop(ctx context.Context) {
 func (s *Server) seedSeen(dir string) {
 	n := s.Cfg.ScreenshotsN
 	if n <= 0 {
-		n = 10
+		n = 20
 	}
 	files, err := shots.Recent(dir, n)
 	if err != nil || len(files) == 0 {
@@ -226,7 +226,7 @@ func (s *Server) pollFolder() {
 	}
 	n := s.Cfg.ScreenshotsN
 	if n <= 0 {
-		n = 10
+		n = 20
 	}
 	files, err := shots.Recent(dir, n)
 	if err != nil || len(files) == 0 {

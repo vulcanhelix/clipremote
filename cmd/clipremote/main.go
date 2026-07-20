@@ -30,7 +30,7 @@ import (
 	"github.com/vulcanhelix/clipremote/internal/xvfb"
 )
 
-var version = "0.1.5"
+var version = "0.1.6"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -297,7 +297,7 @@ func cmdPush(args []string) error {
 				n = cfg.ScreenshotsN
 			}
 			if n <= 0 {
-				n = 10
+				n = 20
 			}
 			files, ferr := shots.Recent(resolved, n)
 			if ferr != nil {
@@ -473,9 +473,9 @@ func cmdSetup(args []string) error {
 
 	// Sensible auto-sync defaults
 	if cfg.ScreenshotsN <= 0 {
-		cfg.ScreenshotsN = 10
+		cfg.ScreenshotsN = 20
 	}
-	cfg.History = 10 // always cap remote at 10
+	cfg.History = 20 // VPS keeps last 20 screenshots
 	if cfg.Source == "" {
 		cfg.Source = "folder"
 	}

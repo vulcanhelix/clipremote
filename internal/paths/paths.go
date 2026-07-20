@@ -7,7 +7,7 @@ import (
 
 const (
 	DefaultPort     = 18765
-	DefaultHistory  = 10
+	DefaultHistory  = 20
 	AppName         = "clipremote"
 	LatestFileName  = "latest.png"
 	HistoryDirName  = "history"

@@ -74,7 +74,7 @@ type File struct {
 // Recent returns up to n newest image files in dir (non-recursive).
 func Recent(dir string, n int) ([]File, error) {
 	if n <= 0 {
-		n = 10
+		n = 20
 	}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
