@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"runtime"
@@ -29,7 +30,7 @@ import (
 	"github.com/vulcanhelix/clipremote/internal/xvfb"
 )
 
-var version = "0.1.4"
+var version = "0.1.5"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -61,6 +62,8 @@ func main() {
 		err = cmdHost(args)
 	case "setup":
 		err = cmdSetup(args)
+	case "install-service", "service-install":
+		err = cmdInstallService(args)
 	case "doctor":
 		err = cmdDoctor(args)
 	case "xvfb":
@@ -84,6 +87,7 @@ Usage:
 
 Local (Mac laptop):
   setup                 Install config + launchd plist hints
+  install-service       Install + start login daemon (survives reboot)
   daemon                Run clipboard watcher + pull HTTP server
   push [host]           Upload last N screenshots from folder (default) or clipboard
   host add|list|rm      Manage configured hosts
@@ -471,9 +475,7 @@ func cmdSetup(args []string) error {
 	if cfg.ScreenshotsN <= 0 {
 		cfg.ScreenshotsN = 10
 	}
-	if cfg.History <= 0 {
-		cfg.History = 10
-	}
+	cfg.History = 10 // always cap remote at 10
 	if cfg.Source == "" {
 		cfg.Source = "folder"
 	}
@@ -517,8 +519,11 @@ func cmdSetup(args []string) error {
 			fmt.Fprintf(os.Stderr, "  launchd: %v\n", err)
 		} else {
 			fmt.Printf("  launchd plist written: %s\n", plistDir)
-			fmt.Println("  enable with:")
-			fmt.Printf("    launchctl unload %s 2>/dev/null; launchctl load %s\n", plistDir, plistDir)
+			fmt.Println("  enable with (macOS):")
+			fmt.Printf("    launchctl bootout gui/$(id -u) %s 2>/dev/null\n", plistDir)
+			fmt.Printf("    launchctl bootstrap gui/$(id -u) %s\n", plistDir)
+			fmt.Printf("    launchctl kickstart -k gui/$(id -u)/com.clipremote.daemon\n")
+			fmt.Println("  or simply:  clipremote daemon &")
 		}
 	} else {
 		fmt.Println("Start the daemon in the background:")
@@ -546,6 +551,7 @@ func writeLaunchdPlist(exe string, port int) (string, error) {
 	logPath := filepath.Join(home, "Library", "Logs", "clipremote.log")
 	_ = os.MkdirAll(filepath.Dir(logPath), 0o755)
 
+	// Absolute binary path; include Homebrew + local bin for ssh/pngpaste
 	content := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -563,17 +569,105 @@ func writeLaunchdPlist(exe string, port int) (string, error) {
   <true/>
   <key>KeepAlive</key>
   <true/>
+  <key>ThrottleInterval</key>
+  <integer>5</integer>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>WorkingDirectory</key>
+  <string>%s</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>HOME</key>
+    <string>%s</string>
+  </dict>
   <key>StandardOutPath</key>
   <string>%s</string>
   <key>StandardErrorPath</key>
   <string>%s</string>
 </dict>
 </plist>
-`, exe, port, logPath, logPath)
+`, exe, port, home, home, logPath, logPath)
 	if err := os.WriteFile(plistPath, []byte(content), 0o644); err != nil {
 		return "", err
 	}
 	return plistPath, nil
+}
+
+// cmdInstallService installs and starts the login LaunchAgent (macOS) so the
+// daemon survives reboots. On Linux, prints a systemd user unit hint.
+func cmdInstallService(args []string) error {
+	cfg := loadCfg()
+	exe, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	// Resolve symlinks so launchd gets a stable path
+	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
+		exe = resolved
+	}
+
+	if runtime.GOOS == "darwin" {
+		plistPath, err := writeLaunchdPlist(exe, cfg.Port)
+		if err != nil {
+			return err
+		}
+		uid := os.Getuid()
+		domain := fmt.Sprintf("gui/%d", uid)
+		label := "com.clipremote.daemon"
+
+		// bootout old (ignore errors), bootstrap, kickstart
+		_ = exec.Command("launchctl", "bootout", domain, plistPath).Run()
+		if out, err := exec.Command("launchctl", "bootstrap", domain, plistPath).CombinedOutput(); err != nil {
+			// fallback to legacy load
+			if out2, err2 := exec.Command("launchctl", "load", "-w", plistPath).CombinedOutput(); err2 != nil {
+				return fmt.Errorf("launchctl bootstrap failed: %v (%s); load failed: %v (%s)",
+					err, strings.TrimSpace(string(out)), err2, strings.TrimSpace(string(out2)))
+			}
+		}
+		_ = exec.Command("launchctl", "enable", domain+"/"+label).Run()
+		_ = exec.Command("launchctl", "kickstart", "-k", domain+"/"+label).Run()
+
+		fmt.Println("clipremote daemon installed for login (survives reboot)")
+		fmt.Printf("  plist:  %s\n", plistPath)
+		fmt.Printf("  logs:   ~/Library/Logs/clipremote.log\n")
+		fmt.Println("  check:  launchctl print gui/$(id -u)/com.clipremote.daemon | head")
+		fmt.Println("  hosts:  clipremote host list   # must list your VPS")
+		return nil
+	}
+
+	// Linux user systemd unit
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	unitDir := filepath.Join(home, ".config", "systemd", "user")
+	if err := os.MkdirAll(unitDir, 0o755); err != nil {
+		return err
+	}
+	unitPath := filepath.Join(unitDir, "clipremote-daemon.service")
+	unit := fmt.Sprintf(`[Unit]
+Description=clipremote screenshot auto-sync daemon
+After=network-online.target
+
+[Service]
+ExecStart=%s daemon --port %d
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+`, exe, cfg.Port)
+	if err := os.WriteFile(unitPath, []byte(unit), 0o644); err != nil {
+		return err
+	}
+	fmt.Println("wrote", unitPath)
+	fmt.Println("enable with:")
+	fmt.Println("  systemctl --user daemon-reload")
+	fmt.Println("  systemctl --user enable --now clipremote-daemon.service")
+	fmt.Println("  loginctl enable-linger $USER   # optional: run without login")
+	return nil
 }
 
 func cmdDoctor(args []string) error {
