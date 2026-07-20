@@ -24,11 +24,12 @@ import (
 	"github.com/vulcanhelix/clipremote/internal/ingest"
 	"github.com/vulcanhelix/clipremote/internal/paths"
 	"github.com/vulcanhelix/clipremote/internal/push"
+	"github.com/vulcanhelix/clipremote/internal/shots"
 	"github.com/vulcanhelix/clipremote/internal/sshutil"
 	"github.com/vulcanhelix/clipremote/internal/xvfb"
 )
 
-var version = "0.1.1"
+var version = "0.1.2"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -84,7 +85,7 @@ Usage:
 Local (Mac laptop):
   setup                 Install config + launchd plist hints
   daemon                Run clipboard watcher + pull HTTP server
-  push [host]           Push current clipboard image to host(s)
+  push [host]           Upload last N screenshots from folder (default) or clipboard
   host add|list|rm      Manage configured hosts
   ssh <target> [args]   SSH with ControlMaster + reverse tunnel + auto-push
 
@@ -225,15 +226,20 @@ func cmdPaste(args []string) error {
 }
 
 func cmdPush(args []string) error {
-	cfg := loadCfg()
-	img, err := clipboard.ReadImage()
-	if err != nil {
-		return fmt.Errorf("read local clipboard: %w", err)
+	fs := flag.NewFlagSet("push", flag.ContinueOnError)
+	nFlag := fs.Int("n", 0, "number of recent screenshots to upload (default from config, usually 10)")
+	dirFlag := fs.String("dir", "", "screenshots folder (default: auto-detect Desktop/Screenshots)")
+	clipOnly := fs.Bool("clipboard", false, "push clipboard image only (ignore folder)")
+	if err := fs.Parse(args); err != nil {
+		return err
 	}
+	cfg := loadCfg()
+	rest := fs.Args()
 
 	var targets []string
-	if len(args) > 0 {
-		for _, a := range args {
+	var err error
+	if len(rest) > 0 {
+		for _, a := range rest {
 			if h, ok := cfg.FindHost(a); ok {
 				targets = append(targets, h.SSH)
 			} else {
@@ -246,7 +252,6 @@ func cmdPush(args []string) error {
 			return err
 		}
 		if len(targets) == 0 {
-			// fall back to all configured hosts
 			for _, h := range cfg.Hosts {
 				targets = append(targets, h.SSH)
 			}
@@ -256,16 +261,86 @@ func cmdPush(args []string) error {
 		return fmt.Errorf("no targets: pass a host, or: clipremote host add NAME user@host, then clipremote ssh NAME")
 	}
 
-	var errs []string
-	for _, t := range targets {
-		if err := push.ToHost(t, img.PNG); err != nil {
-			errs = append(errs, fmt.Sprintf("%s: %v", t, err))
-			fmt.Fprintf(os.Stderr, "push %s: %v\n", t, err)
+	// Collect local images to upload (oldest → newest so latest.png is newest)
+	type item struct {
+		label string
+		data  []byte
+	}
+	var items []item
+
+	src := cfg.Source
+	if src == "" {
+		src = "folder"
+	}
+	if *clipOnly {
+		src = "clipboard"
+	}
+
+	if src == "folder" || src == "auto" {
+		dir := *dirFlag
+		if dir == "" {
+			dir = cfg.ScreenshotsDir
+		}
+		resolved, rerr := shots.ResolveDir(dir)
+		if rerr != nil {
+			if src == "folder" {
+				return rerr
+			}
+			fmt.Fprintf(os.Stderr, "folder: %v\n", rerr)
 		} else {
-			fmt.Printf("pushed %d bytes → %s\n", len(img.PNG), t)
+			n := *nFlag
+			if n <= 0 {
+				n = cfg.ScreenshotsN
+			}
+			if n <= 0 {
+				n = 10
+			}
+			files, ferr := shots.Recent(resolved, n)
+			if ferr != nil {
+				return ferr
+			}
+			if len(files) == 0 {
+				if src == "folder" {
+					return fmt.Errorf("no images in %s", resolved)
+				}
+			} else {
+				fmt.Fprintf(os.Stderr, "uploading %d image(s) from %s\n", len(files), resolved)
+				// files are newest-first; reverse for upload order
+				for i := len(files) - 1; i >= 0; i-- {
+					f := files[i]
+					data, err := os.ReadFile(f.Path)
+					if err != nil {
+						return err
+					}
+					items = append(items, item{label: f.Path, data: data})
+				}
+			}
 		}
 	}
-	if len(errs) == len(targets) {
+
+	if len(items) == 0 && (src == "clipboard" || src == "auto") {
+		img, err := clipboard.ReadImage()
+		if err != nil {
+			return fmt.Errorf("no folder images and clipboard empty: %w", err)
+		}
+		items = append(items, item{label: "(clipboard)", data: img.PNG})
+	}
+	if len(items) == 0 {
+		return fmt.Errorf("nothing to push")
+	}
+
+	var errs []string
+	for _, t := range targets {
+		for _, it := range items {
+			if err := push.ToHost(t, it.data); err != nil {
+				errs = append(errs, fmt.Sprintf("%s→%s: %v", it.label, t, err))
+				fmt.Fprintf(os.Stderr, "push %s → %s: %v\n", it.label, t, err)
+			} else {
+				fmt.Printf("pushed %s (%d bytes) → %s\n", it.label, len(it.data), t)
+			}
+		}
+	}
+	if len(errs) > 0 && len(errs) == len(targets)*len(items) {
 		return fmt.Errorf("all pushes failed")
 	}
 	return nil

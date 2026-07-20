@@ -13,8 +13,13 @@ import (
 	"github.com/vulcanhelix/clipremote/internal/paths"
 )
 
-// ToHost streams PNG bytes to `clipremote ingest` on the remote host via SSH.
+// ToHost streams image bytes to `clipremote ingest` on the remote host via SSH.
 func ToHost(sshTarget string, png []byte) error {
+	return ToHostOpts(sshTarget, png, true)
+}
+
+// ToHostOpts streams image bytes; setClipboard asks remote to update its clipboard too.
+func ToHostOpts(sshTarget string, png []byte, setClipboard bool) error {
 	if sshTarget == "" {
 		return fmt.Errorf("empty ssh target")
 	}
@@ -22,12 +27,13 @@ func ToHost(sshTarget string, png []byte) error {
 		"-o", "BatchMode=yes",
 		"-o", "ConnectTimeout=8",
 	}
-	// Prefer ControlMaster if present
 	if cp := controlPathFor(sshTarget); cp != "" {
 		args = append(args, "-o", "ControlPath="+cp, "-o", "ControlMaster=auto", "-o", "ControlPersist=yes")
 	}
-	// Non-interactive SSH often has a minimal PATH. Prefer login shell + common install dirs.
-	remoteCmd := `export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"; exec clipremote ingest --clipboard`
+	remoteCmd := `export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"; exec clipremote ingest`
+	if setClipboard {
+		remoteCmd += ` --clipboard`
+	}
 	args = append(args, sshTarget, "bash", "-lc", remoteCmd)
 
 	cmd := exec.Command("ssh", args...)
@@ -40,6 +46,15 @@ func ToHost(sshTarget string, png []byte) error {
 		return fmt.Errorf("ssh %s: %w: %s", sshTarget, err, strings.TrimSpace(stderr.String()))
 	}
 	return nil
+}
+
+// FileToHost uploads a local image file to the remote host.
+func FileToHost(sshTarget, localPath string) error {
+	data, err := os.ReadFile(localPath)
+	if err != nil {
+		return err
+	}
+	return ToHostOpts(sshTarget, data, true)
 }
 
 func controlPathFor(target string) string {

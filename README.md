@@ -65,42 +65,33 @@ ssh user@host 'chmod +x ~/.local/bin/clipremote && clipremote setup --remote'
 ### 1. Mac (once)
 
 ```bash
-clipremote setup          # writes config + launchd plist on macOS
-clipremote daemon &       # or: launchctl load ~/Library/LaunchAgents/com.clipremote.daemon.plist
-# optional but recommended:
-brew install pngpaste
-
+clipremote setup
+clipremote daemon &       # or launchctl load the plist from setup
 clipremote host add box user@your-server
 ```
+
+Default mode watches your **screenshots folder** (Desktop / Pictures/Screenshots) — CleanShot-friendly, no clipboard needed.
 
 ### 2. Remote Linux (once)
 
 ```bash
 clipremote setup --remote
-# optional true Ctrl+V on headless hosts:
-#   sudo apt install -y xvfb xclip
-#   clipremote setup --remote --with-xvfb
-#   clipremote xvfb && export DISPLAY=:99
 ```
 
 ### 3. Every day
 
 ```bash
-# Mac
 clipremote ssh box
-# or: grok wrap clipremote ssh box   # text copy-out + image bridge
-
-# Copy a screenshot on the Mac → auto-pushes within ~300ms
-
-# Remote Grok
-#   Ctrl+V
-#   or: @~/.cache/clipremote/latest.png
+# take a screenshot → auto-uploads within ~1s
+# in remote Grok:
+@~/.cache/clipremote/latest.png
 ```
 
-Force a push:
+Force upload of the last 10 local screenshots:
 
 ```bash
 clipremote push box
+# clipremote push -n 10 --dir ~/Desktop box
 ```
 
 Pull on demand (uses SSH reverse tunnel from `clipremote ssh`):
@@ -143,6 +134,9 @@ port = 18765
 auto_push = true
 history = 20
 control_path = "~/.ssh/clipremote-%r@%h:%p"
+screenshots_dir = ""          # empty = auto (Desktop, Pictures/Screenshots, …)
+screenshots_n = 10            # last N local images to sync on `push`
+source = "folder"             # folder | clipboard | auto
 
 [[hosts]]
 name = "box"
