@@ -38,12 +38,12 @@ Paste that in the agent. Always. New screenshot → that file updates. Done.
 
 ### Setup once (copy-paste)
 
-Pick version from [Releases](https://github.com/vulcanhelix/clipremote/releases/latest) (example: `0.1.6`).
+Pick version from [Releases](https://github.com/vulcanhelix/clipremote/releases/latest) (example: `0.1.7`).
 
 **1. On the remote box** (where the agent runs):
 
 ```bash
-V=0.1.6   # bump if a newer release exists
+V=0.1.7   # bump if a newer release exists
 mkdir -p ~/.local/bin
 curl -fsSL -o ~/.local/bin/clipremote \
   "https://github.com/vulcanhelix/clipremote/releases/download/v${V}/clipremote_${V}_linux_amd64"
@@ -57,7 +57,7 @@ clipremote setup --remote
 **2. On your Mac:**
 
 ```bash
-V=0.1.6
+V=0.1.7
 # M1/M2/M3 → darwin_arm64 | Intel → darwin_amd64
 ARCH=darwin_amd64
 curl -fsSL -o /usr/local/bin/clipremote \
@@ -153,7 +153,7 @@ Linux laptops work for `push` / folder mode; the polished login service path is 
 
 ## Install
 
-Replace `vX.Y.Z` with the [latest release](https://github.com/vulcanhelix/clipremote/releases/latest) tag (e.g. `v0.1.6`).
+Replace `vX.Y.Z` with the [latest release](https://github.com/vulcanhelix/clipremote/releases/latest) tag (e.g. `v0.1.7`).
 
 ### 1. Remote Linux host (once)
 
