@@ -5,6 +5,10 @@
 - Documentation overhaul for general users (not machine-specific)
 - Generic agent integration rules under `integrations/`
 
+## v0.1.7
+
+- Fix `ingest --clipboard` hanging on hosts with a display: `xclip -i` / `wl-copy` fork a background owner that held clipremote's output pipes open
+
 ## v0.1.6
 
 - Default screenshot history and `screenshots_n` raised to **20**

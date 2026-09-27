@@ -24,10 +24,7 @@ func SetImage(data []byte, opt SetOptions) error {
 			cmd := exec.Command(path, "--type", "image/png")
 			cmd.Stdin = bytes.NewReader(data)
 			cmd.Env = os.Environ()
-			if out, err := cmd.CombinedOutput(); err != nil {
-				return fmt.Errorf("wl-copy: %w (%s)", err, strings.TrimSpace(string(out)))
-			}
-			return nil
+			return runClipboardOwner("wl-copy", cmd)
 		}
 	}
 
@@ -40,14 +37,30 @@ func SetImage(data []byte, opt SetOptions) error {
 			env = append(env, "DISPLAY="+display)
 		}
 		cmd.Env = env
-		if out, err := cmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("xclip: %w (%s)", err, strings.TrimSpace(string(out)))
-		}
-		return nil
+		return runClipboardOwner("xclip", cmd)
 	}
 
 	// xsel does not handle image types well; skip
 	return fmt.Errorf("no clipboard tool found (install wl-clipboard or xclip; set DISPLAY or WAYLAND_DISPLAY)")
+}
+
+// runClipboardOwner runs xclip -i / wl-copy, which fork a background child that
+// keeps serving the selection. Capturing output via pipes would block until that
+// child exits (i.e. until something else takes the clipboard), so stdout goes to
+// /dev/null and stderr to a temp file the child can hold without blocking us.
+func runClipboardOwner(name string, cmd *exec.Cmd) error {
+	errFile, err := os.CreateTemp("", "clipremote-"+name+"-*.err")
+	if err != nil {
+		return fmt.Errorf("%s: %w", name, err)
+	}
+	defer os.Remove(errFile.Name())
+	defer errFile.Close()
+	cmd.Stderr = errFile
+	if err := cmd.Run(); err != nil {
+		msg, _ := os.ReadFile(errFile.Name())
+		return fmt.Errorf("%s: %w (%s)", name, err, strings.TrimSpace(string(msg)))
+	}
+	return nil
 }
 
 // ReadImage tries to read an image from the Linux clipboard (local desktop use).

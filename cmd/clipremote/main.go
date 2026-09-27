@@ -30,7 +30,7 @@ import (
 	"github.com/vulcanhelix/clipremote/internal/xvfb"
 )
 
-var version = "0.1.6"
+var version = "0.1.7"
 
 func main() {
 	if len(os.Args) < 2 {
